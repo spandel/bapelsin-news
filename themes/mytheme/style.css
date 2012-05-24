@@ -1,0 +1,255 @@
+@import url(../../../theme/grid/style.php);
+
+/*
+body{
+	background-color:#def;
+}
+#content{
+	background-color:#fff;	
+}
+#outer-wrap-header{
+	background-color:#def;
+	
+}
+#outer-wrap-footer{
+	background-color:#def;
+}
+a{
+	color:red;
+}
+ul.navbar li a{
+	-webkit-border-top-left-radius: 10px;
+	-webkit-border-top-right-radius: 10px;
+	-moz-border-radius-topleft: 10px;
+	-moz-border-radius-topright: 10px;
+	border-top-left-radius: 10px;
+	border-top-right-radius: 10px;
+}
+ul.navbar li a.selected{
+	background-color:white !important;
+	color:#088 !important;
+}*/
+#inner-wrap-featured,#outer-wrap-featured,#inner-wrap-main, #outer-wrap-main,#inner-wrap-triptych, #outer-wrap-triptych {
+	clear:both;
+	height:auto;
+	display:block;
+}
+#featured-first,#featured-middle, #featured-last,div#post{
+	overflow:hidden;
+}
+div#post{
+	background-color:#3cc;
+	padding:1em;
+	color:#fff;	
+	margin-top:0;
+	margin-bottom:2em !important;
+}
+.img-page{
+	width:100%;
+	border-style:none;
+}
+div#post h1 a
+{
+	color:#fff;
+}
+#blog-image a{
+	border:none;
+}
+#blog-image{
+	border-style:none;
+	margin-bottom:-5px;
+}
+#blog-image img{
+	width:620px;
+	/*clip:rect(0px,300px,150px,0px);*/
+}
+.img-featured{
+	position:absolute;
+	overflow:hidden;
+	clip:rect(0px,300px,150px,0px);
+	float:left;	
+	z-index:-1;
+}
+a:hover #text-featured{
+	margin-top:0em;
+	overflow:hidden;
+}
+#text-featured p#post-content{
+	display:none;
+}
+a:hover #text-featured p#post-content{
+	display:block;
+}
+#text-featured{
+	margin-top:77px;
+	padding:1em;
+}
+
+#bg-div{
+	z-index:-1;
+	position:absolute;
+	width:300px;
+	height:75px;
+	margin-top:75px;
+	background-color:#3cc;
+	opacity:0.3;
+}
+a:hover #bg-div{
+	opacity:0.8;
+	margin-top:0;
+	height:150px;
+}
+a div#text-featured h2{
+	margin-bottom:0;
+}
+div#comment{
+	border:none;
+	margin-bottom:0;
+}
+div#comment h4{
+	background-color:#3cc;
+	padding:0.5em;
+	margin-left:-0.5em;
+	margin-right:-0.5em;
+	color:#fff;
+}
+p#comment-time{
+	margin-top:1em;
+	margin-bottom:0;
+}
+#page hr{
+	/*color:#3cc;*/
+	color:#3cc;
+	
+}
+#page h3{
+	
+}
+#post hr{
+	color:#def;
+}
+#page{
+	padding:1em;
+	background-color:#def;
+}
+a div#text-featured, a div#text-featured h2{
+	color:#fff;	
+	opacity:1;
+/*	z-index:2;*/
+}
+#twitter{
+	padding:1em;
+	background-color:#def;
+}
+#img-div{
+	color:#fff;
+	padding:0;
+	margin:0;
+	background-color:#000;
+	z-index:0;
+}
+#form-element-Kommentar{
+	width:100%;
+	height:8em;
+}
+div#post{
+	margin-bottom:1em;
+}
+h1,h2,h3,h4,h5,h6{
+	color:#333;
+	font-family:helvetica,arial,sans serif;
+	font-style:italic;
+	font-weight:normal;
+
+}
+h1 a,h2 a,h3 a,h4 a,h5 a,h6 a{
+		border-bottom:none;
+}
+body{
+	color:#111;
+	font-family:helvetica,arial,sans-serif;
+	font-size:14px;
+}
+code,pre{
+	color:#666;
+}
+a{
+	color:#333;
+	
+	border-bottom:1px dotted #333;	
+}
+a:visited{
+	color:#333;
+}
+a:hover{
+	color:#0aa;
+	text-decoration:none;
+	border-bottom:none;
+}
+#site-logo{
+	float:none;
+}
+div#banner a{
+	border-bottom:none;
+}
+#site-title{
+	padding-left:0;
+	font-family:helvetica, arial;
+	font-weight:bold;
+}
+#site-title a{
+	color:#111;
+	font-style:normal;
+	border-bottom:none;
+}
+#site-title a:hover{
+	color:#111;
+}
+ul.menu li a{
+	background:transparent;
+	border-bottom:none;
+	
+}
+ul.menu li{
+	padding-bottom:2em;
+}
+#banner{
+	margin-top:1em;
+}
+#navbar{
+	
+	border-bottom:1em solid #def;
+}
+ul.menu li a.selected{
+	background-color:transparent !important;
+	color: #111 !important;
+	padding-bottom:2em;
+	border-bottom:1em solid #3cc;
+}
+#navbar ul.menu:hover li a{
+	border-bottom:none;
+}
+#navbar ul.menu li a:hover{
+	background-color:transparent !important;
+	color: #333 !important;
+	border-bottom:1em solid #3cc;
+}
+em{
+	font-size:0.9em;
+}
+#navbar ul.menu{
+	padding-left:0;
+	padding-right:0;
+	padding-bottom:1em;
+}
+#navbar ul.menu li{
+	padding-bottom:2em;
+}
+#navbar ul.menu li a{
+	padding-bottom:16px;
+}
+#header{
+	background-color:#fff;
+	/*background:url("http://www.student.bth.se/~dasp11/phpmvc/projekt/Bapelsin/site/data/img/bg.jpg");
+*/
+}
