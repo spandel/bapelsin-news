@@ -1,7 +1,7 @@
 
 <?php foreach($contents as $val) :?>
 <div id='blog-image'>
-	<a href="<?=create_url("news/post/".$val['id'])?>">	
+	<a href="<?=create_url("news/post/".$val['key'])?>">	
 	<?php
 		$img='design04.png';
 		$img=$val['image'];
@@ -14,13 +14,13 @@
 </div>
 <div id='post'>
 	<h1>
-		<a href="<?=create_url("news/post/".$val['id'])?>">
+		<a href="<?=create_url("news/post/".$val['key'])?>">
 			<?=$val['title']?>
 		</a>
 	</h1>
 	
 	<p id='post-posted'>
-		<em>Posted on <?=$val['created']?> by <?=$val['owner']?></em>
+		<em>Skrivet <?=$val['created']?> av <?=$val['owner']?></em>
 	</p>
 	
 	<p id='post-content'>
@@ -39,10 +39,10 @@
 		echo substr(filter_data($val['data'],$val['filter']),0,500);
 		echo $dots;
 		?>
-		<a href="<?=create_url("news/post/".$val['id'])?>">	Läs mer</a>
+		<a href="<?=create_url("news/post/".$val['key'])?>">	Läs mer</a>
 	</p>
 	
-	<em>tags: <?php
+	<em>Taggar: <?php
 $i=0;
 foreach($val['tags'] as $v)
 {

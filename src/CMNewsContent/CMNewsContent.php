@@ -8,7 +8,10 @@ class CMNewsContent extends CObject implements IHasSQL, ArrayAccess, IModule {
 		parent::__construct();
 		if($id) 
 		{
-			$this->loadById($id);
+			if(is_numeric($id))
+				$this->loadById($id);
+			else
+				$this->loadByKey($id);
 		} 
 		else 
 		{
@@ -45,15 +48,16 @@ class CMNewsContent extends CObject implements IHasSQL, ArrayAccess, IModule {
 			'create table content2tags'	=> "CREATE TABLE IF NOT EXISTS Content2Tags (idContent INTEGER, idTags INTEGER, created DATETIME default (datetime('now')), PRIMARY KEY(idContent, idTags));",
 			'insert into tags'       	=> 'INSERT INTO Tags (tag,name) VALUES (?,?);',
 			'insert into content2tags'  => 'INSERT INTO Content2Tags (idContent,idTags) VALUES (?,?);',
+			'remove tags from content'	=> 'DELETE FROM Content2Tags WHERE idContent=?;',
 			'get tags'  				=> 'SELECT * FROM Tags AS t INNER JOIN Content2Tags AS ct ON t.id=ct.idTags WHERE ct.idContent=?;',
-			'get content by tag'		=> "SELECT c.*, u.acronym as owner FROM Content AS c INNER JOIN COntent2Tags AS ct ON c.id=ct.idContent INNER JOIN User as u ON c.idUser=u.id WHERE ct.idTags=? AND deleted IS NULL ORDER BY {$order_by} {$order_order};",
-			'create table content'      => "CREATE TABLE IF NOT EXISTS Content (id INTEGER PRIMARY KEY, key TEXT KEY, type TEXT, title TEXT, data TEXT, filter TEXT, idUser INT, image TEXT default NULL,created DATETIME default (datetime('now')), updated DATETIME default NULL, deleted DATETIME default NULL, FOREIGN KEY(idUser) REFERENCES User(id));",
-			'insert content'            => 'INSERT INTO Content (key,type,title,data,filter,idUser,image) VALUES (?,?,?,?,?,?,?);',
+			'get content by tag'		=> "SELECT c.*, u.acronym as owner FROM Content AS c INNER JOIN COntent2Tags AS ct ON c.id=ct.idContent INNER JOIN User as u ON c.idUser=u.id WHERE type=? AND ct.idTags=? AND deleted IS NULL ORDER BY {$order_by} {$order_order};",
+			'create table content'      => "CREATE TABLE IF NOT EXISTS Content (id INTEGER PRIMARY KEY, key TEXT KEY, type TEXT, isPlus INTEGER default NULL, title TEXT, data TEXT, filter TEXT, idUser INT, image TEXT default NULL,created DATETIME default (datetime('now')), updated DATETIME default NULL, deleted DATETIME default NULL, FOREIGN KEY(idUser) REFERENCES User(id));",
+			'insert content'            => 'INSERT INTO Content (key,type,title,data,filter,idUser,image, isPlus) VALUES (?,?,?,?,?,?,?,?);',
 			'select * by id'            => 'SELECT c.*, u.acronym as owner FROM Content AS c INNER JOIN User as u ON c.idUser=u.id WHERE c.id=? AND deleted IS NULL;',
 			'select * by key'           => 'SELECT c.*, u.acronym as owner FROM Content AS c INNER JOIN User as u ON c.idUser=u.id WHERE c.key=? AND deleted IS NULL;',
 			'select * by type'          => "SELECT c.*, u.acronym as owner FROM Content AS c INNER JOIN User as u ON c.idUser=u.id WHERE type=? AND deleted IS NULL ORDER BY {$order_by} {$order_order};",
 			'select *'                  => 'SELECT c.*, u.acronym as owner FROM Content AS c INNER JOIN User as u ON c.idUser=u.id WHERE deleted IS NULL;',
-			'update content'            => "UPDATE Content SET key=?, type=?, title=?, data=?, filter=?, image=?, updated=datetime('now') WHERE id=?;",
+			'update content'            => "UPDATE Content SET key=?, type=?, title=?, data=?, filter=?, image=?, isPlus=?, updated=datetime('now') WHERE id=?;",
 			'update content as deleted' => "UPDATE Content SET deleted=datetime('now') WHERE id=?;",
     	 );
 		if(!isset($queries[$key])) 
@@ -78,13 +82,305 @@ class CMNewsContent extends CObject implements IHasSQL, ArrayAccess, IModule {
 			$this->db->query(self::SQL('insert into tags'),array('design','About design.'));
 			$this->db->query(self::SQL('insert into tags'),array('gaming','About gaming.'));
 			if(isset($this->config['create_dummy_text']) && $this->config['create_dummy_text'])
+			{
 				$this->createDummyText();
+				$this->createDummyThreads();
+			}
 			return array('success', 'Successfully created the database tables and created some default posts and pages, owned by you.');
 		} catch(Exception$e) 
 		{			
 			die("$e<br/>Failed to open database: " . $this->config['database'][0]['dsn']);
 		}
 	}
+  
+	public function save() 
+	{
+		if(!isset($this['image']))
+			$this['image']=null;
+		
+		$msg = null;
+		if($this['id']) 
+		{
+			$this->db->query(self::SQL('update content'), array($this['key'], $this['type'], $this['title'], $this['data'], $this['filter'], $this['image'], $this['isPlus'], $this['id']));
+			$idContent=$this->db->lastInsertId();
+			$this->db->query(self::SQL('remove tags from content'),array($this['id']));
+			foreach($this['tags'] as $v)
+			{
+				$this->db->query(self::SQL('insert into content2tags'),array($this['id'],$v));
+			}
+			$msg = 'update';
+		} else 
+		{
+			$this->db->query(self::SQL('insert content'), array($this['key'], $this['type'], $this['title'], $this['data'], $this['filter'], $this->user['id'], $this['image'], false));
+			$this['id'] = $this->db->lastInsertId();
+			$idContent=$this['id'];
+			foreach($this['tags'] as $v)
+			{
+				$this->db->query(self::SQL('insert into content2tags'),array($idContent,$v));
+			}
+			$msg = 'created';
+		}
+		$rowcount = $this->db->rowCount();
+		if($rowcount) 
+		{
+			$this->session->addMessage('success', "Successfully {$msg} content '{$this['key']}'.");
+		} else 
+		{
+			$this->session->addMessage('error', "Failed to {$msg} content '{$this['key']}'.");
+		}
+		return $rowcount === 1;
+	}
+    
+	public function loadById($id) 
+	{
+		$res = $this->db->select(self::SQL('select * by id'), array($id));
+		if(empty($res)) 
+		{
+			$this->session->addMessage('error', "Failed to load content with id '$id'.");
+			return false;
+		} 
+		else 
+		{
+			$this->data = $res[0];
+		}
+		return true;
+	}
+	public function loadByKey($key) 
+	{
+		$res = $this->db->select(self::SQL('select * by key'), array($key));
+		if(empty($res)) 
+		{
+			$this->session->addMessage('error', "Failed to load content with id '$key'.");
+			return false;
+		} 
+		else 
+		{
+			$this->data = $res[0];
+		}
+		return true;
+	}
+	public function remove($id)
+	{
+		$this->db->query(self::SQL('update content as deleted'), array($id));
+		$this->session->addMessage('success', "Successfully removed content '{$id}'.");
+	}
+	public function listAllTags($args=null)
+	{
+		try 
+		{
+			if(isset($args)) 
+			{
+				return $this->db->select(self::SQL('get tags', $args), array($args['id']));
+			} 
+			else 
+			{
+				return $this->db->select(self::SQL('select *', $args));
+			}
+		} catch(Exception $e) 
+		{
+			echo $e;
+			return null;
+		}
+	} 
+	public function listAllByTag($args=null) 
+	{
+		try 
+		{
+			if(isset($args)) 
+			{
+				return $this->db->select(self::SQL('get content by tag', $args), array('post',$args['tag']));
+			} 
+			else 
+			{
+				return $this->db->select(self::SQL('select *', $args));
+			}
+		} catch(Exception $e) 
+		{
+			echo $e;
+			return null;
+		}
+	}  
+	public function listAll($args=null) 
+	{
+		try 
+		{
+			if(isset($args) && isset($args['type'])) 
+			{
+				return $this->db->select(self::SQL('select * by type', $args), array($args['type']));
+			} 
+			else 
+			{
+				return $this->db->select(self::SQL('select *', $args));
+			}
+		} catch(Exception $e) 
+		{
+			echo $e;
+			return null;
+		}
+	}  
+	public static function filter($data, $filter)
+	{
+		switch($filter)
+		{/*
+		case 'php':
+			$data=nl2br(makeClickable(eval('?>'.$data)));
+			break;
+		case 'html':
+			$data=nl2br(makeClickable($data));
+			break;*/
+		case 'htmlpurify':
+			$data=nl2br(CHTMLPurifier::purify($data));
+			break;
+		case 'bbcode':
+			$data=nl2br(bbcode2html(htmlent($data)));
+			break;
+		case 'plain':
+		default:
+			$data=nl2br(makeClickable(htmlent($data)));
+		}
+		return $data;
+	}
+	public function getFilteredData()
+	{
+		return $this->filter($this['data'],$this['filter']);
+	}	
+	public function createDummyThreads()
+	{
+		$key='Letar efter designer';
+		$title='Letar efter webdesigner';
+		$article=<<<EOD
+Jag letar efter en designer till min websida! någon som är kickass??!
+Den kommer ha allt grymt.
+EOD;
+		$image='web05.jpg';
+		$idTag=2;
+		
+		$this->db->query(self::SQL('insert content'), array($key, 'thread', $title, $article, 'plain', $this->user['id'],$image, false));
+		$idContent=$this->db->lastInsertId();
+		$this->db->query(self::SQL('insert into content2tags'),array($idContent,$idTag));
+		
+		
+		
+		
+		
+		
+		$key='';
+		$key=$title='Fetaste tricket ni satt?!?!?! :O::O OMGWTF!?!?';
+		$article=<<<EOD
+VILKET ÄR DET Fetaste tricket ni satt?!?!?! ?!?
+EOD;
+		$image='web05.jpg';
+		$idTag=1;		
+		$this->db->query(self::SQL('insert content'), array($key, 'thread', $title, $article, 'plain', $this->user['id'],$image, false));
+		$idContent=$this->db->lastInsertId();
+		$this->db->query(self::SQL('insert into content2tags'),array($idContent,$idTag));
+		
+		
+		
+		$key='';
+		$key=$title='Bästa webbsidan??';
+		$article=<<<EOD
+Vilken tycker ni är den mest praktiska webbsidan? 
+
+Jag tycker Google!!!!!
+EOD;
+		$image='web05.jpg';
+		$idTag=2;		
+		$this->db->query(self::SQL('insert content'), array($key, 'thread', $title, $article, 'plain', $this->user['id'],$image, false));
+		$idContent=$this->db->lastInsertId();
+		$this->db->query(self::SQL('insert into content2tags'),array($idContent,$idTag));
+		
+		
+		
+		$key='';
+		$key=$title='Snyggaste designen??';
+		$article=<<<EOD
+Vilken läskburk tycker ni är snyggazt?! Jag tycker coca cola. =)D
+EOD;
+		$image='web05.jpg';
+		$idTag=3;		
+		$this->db->query(self::SQL('insert content'), array($key, 'thread', $title, $article, 'plain', $this->user['id'],$image, false));
+		$idContent=$this->db->lastInsertId();
+		$this->db->query(self::SQL('insert into content2tags'),array($idContent,$idTag));
+		
+		
+		
+		$key='';
+		$key=$title='Diablo III är tråkigt.';
+		$article=<<<EOD
+Är det bara jag som tycker att diablo 3 är tråkigt? 
+
+Sjukt enformigt. 
+EOD;
+		$image='web05.jpg';
+		$idTag=4;		
+		$this->db->query(self::SQL('insert content'), array($key, 'thread', $title, $article, 'plain', $this->user['id'],$image, false));
+		$idContent=$this->db->lastInsertId();
+		$this->db->query(self::SQL('insert into content2tags'),array($idContent,$idTag));
+		
+		
+		
+		
+		$key='';
+		$key=$title='Någon som vet när God of War IV kommer?';
+		$article=<<<EOD
+Är det någon som vet när god of war 4 kommer? Jag längtar som fan! 
+Vilket tycker ni är bäst av de som kommit hittils?
+EOD;
+		$image='web05.jpg';
+		$idTag=4;		
+		$this->db->query(self::SQL('insert content'), array($key, 'thread', $title, $article, 'plain', $this->user['id'],$image, false));
+		$idContent=$this->db->lastInsertId();
+		$this->db->query(self::SQL('insert into content2tags'),array($idContent,$idTag));
+		
+		
+		
+		$key='';
+		$key=$title='Hjälp att hitta billig longboard';
+		$article=<<<EOD
+Jag är ute efter en bräda att cruisa på i sommar. Jag gillar dom nya cruiser-modellerna till formen, men tycker att dom är lite väl korta.
+Någon som sett något liknande fast lite längre? (typ 30-33 tum)
+
+Den bör som sagt inte kosta en förmögenhet heller...
+EOD;
+		$image='web05.jpg';
+		$idTag=1;		
+		$this->db->query(self::SQL('insert content'), array($key, 'thread', $title, $article, 'plain', $this->user['id'],$image, false));
+		$idContent=$this->db->lastInsertId();
+		$this->db->query(self::SQL('insert into content2tags'),array($idContent,$idTag));
+		
+		
+		
+		$key='';
+		$key=$title='Har ni sett det här coola ramverket?';
+		$article=<<<EOD
+Surfade på nätet igår och hittade ett riktigt fett mvc inspirerat phpramverk!
+Det använder massa coola saker och är helt gratis att använda!
+
+[url]http://www.student.bth.se/~dasp11/phpmvc/bapelsin[/url]
+EOD;
+		$image='web05.jpg';
+		$idTag=2;		
+		$this->db->query(self::SQL('insert content'), array($key, 'thread', $title, $article, 'bbcode', $this->user['id'],$image, false));
+		$idContent=$this->db->lastInsertId();
+		$this->db->query(self::SQL('insert into content2tags'),array($idContent,$idTag));
+		
+		
+		
+		
+		$key='';
+		$key=$title='Mac VS PC';
+		$article=<<<EOD
+Apple har ju alltid varit kända för att göra riktigt snygga laptops(bland annat) men jag tycker fan att många PC-tillverkare verkar ha fattat galoppen nu också.
+Vilken laptop är egentligen snyggast?
+EOD;
+		$image='web05.jpg';
+		$idTag=3;		
+		$this->db->query(self::SQL('insert content'), array($key, 'thread', $title, $article, 'bbcode', $this->user['id'],$image, false));
+		$idContent=$this->db->lastInsertId();
+		$this->db->query(self::SQL('insert into content2tags'),array($idContent,$idTag));
+	}
+	
 	public function createDummyText()
 	{
 //1////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////		
@@ -167,14 +463,14 @@ EOD;
 		$image='design01.jpg';
 		$idTag=3;
 		
-		$this->db->query(self::SQL('insert content'), array($key, 'post', $title, $article, 'plain', $this->user['id'],$image));
+		$this->db->query(self::SQL('insert content'), array($key, 'post', $title, $article, 'plain', $this->user['id'],$image, true));
 		$idContent=$this->db->lastInsertId();
 		$this->db->query(self::SQL('insert into content2tags'),array($idContent,$idTag));
 		$idTag=2;
 		$this->db->query(self::SQL('insert into content2tags'),array($idContent,$idTag));
 
 //2////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////		
-		$key='bind-dina-egna-böcker';
+		$key='bind-dina-egna-bocker';
 		$title='Bind dina egna böcker';
 		$article= <<<EOD
 Karen Lewis visar hur du gör din egen promo materialet står ut med några kostnadseffektiva bindande och sömnad tekniker
@@ -206,7 +502,7 @@ EOD;
 		$image='design02.jpg';
 		$idTag=3;
 		
-		$this->db->query(self::SQL('insert content'), array($key, 'post', $title, $article, 'plain', $this->user['id'],$image));
+		$this->db->query(self::SQL('insert content'), array($key, 'post', $title, $article, 'plain', $this->user['id'],$image, false));
 		$idContent=$this->db->lastInsertId();
 		$this->db->query(self::SQL('insert into content2tags'),array($idContent,$idTag));
 		
@@ -221,7 +517,7 @@ EOD;
 		$image='design03.jpg';
 		$idTag=3;
 		
-		$this->db->query(self::SQL('insert content'), array($key, 'post', $title, $article, 'plain', $this->user['id'],$image));
+		$this->db->query(self::SQL('insert content'), array($key, 'post', $title, $article, 'plain', $this->user['id'],$image, false));
 		$idContent=$this->db->lastInsertId();
 		$this->db->query(self::SQL('insert into content2tags'),array($idContent,$idTag));
 		$idTag=2;
@@ -268,7 +564,7 @@ EOD;
 		$image='design04.png';
 		$idTag=3;
 		
-		$this->db->query(self::SQL('insert content'), array($key, 'post', $title, $article, 'plain', $this->user['id'],$image));
+		$this->db->query(self::SQL('insert content'), array($key, 'post', $title, $article, 'plain', $this->user['id'],$image, false));
 		$idContent=$this->db->lastInsertId();
 		$this->db->query(self::SQL('insert into content2tags'),array($idContent,$idTag));
 
@@ -314,7 +610,7 @@ EOD;
 		$image='design05.png';
 		$idTag=3;
 		
-		$this->db->query(self::SQL('insert content'), array($key, 'post', $title, $article, 'plain', $this->user['id'],$image));
+		$this->db->query(self::SQL('insert content'), array($key, 'post', $title, $article, 'plain', $this->user['id'],$image, false));
 		$idContent=$this->db->lastInsertId();
 		$this->db->query(self::SQL('insert into content2tags'),array($idContent,$idTag));		
 		
@@ -338,13 +634,13 @@ EOD;
 		$image='game01.jpg';
 		$idTag=4;
 		
-		$this->db->query(self::SQL('insert content'), array($key, 'post', $title, $article, 'plain', $this->user['id'],$image));
+		$this->db->query(self::SQL('insert content'), array($key, 'post', $title, $article, 'plain', $this->user['id'],$image, false));
 		$idContent=$this->db->lastInsertId();
 		$this->db->query(self::SQL('insert into content2tags'),array($idContent,$idTag));	
 		
 		
 //2////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////		
-		$key='du-kommer-att-vara-hjälten-i-elder-scrolls-online';
+		$key='du-kommer-att-vara-hjalten-i-elder-scrolls-online';
 		$title='Du kommer att vara hjälten i Elder Scrolls Online';
 		$article=<<<EOD
 Du kommer att vara hjälten i Elder Scrolls Online
@@ -360,7 +656,7 @@ EOD;
 		$image='game02.jpg';
 		$idTag=4;
 		
-		$this->db->query(self::SQL('insert content'), array($key, 'post', $title, $article, 'plain', $this->user['id'],$image));
+		$this->db->query(self::SQL('insert content'), array($key, 'post', $title, $article, 'plain', $this->user['id'],$image, false));
 		$idContent=$this->db->lastInsertId();
 		$this->db->query(self::SQL('insert into content2tags'),array($idContent,$idTag));	
 		$idTag=2;
@@ -379,7 +675,7 @@ EOD;
 		$image='game03.jpg';
 		$idTag=4;
 		
-		$this->db->query(self::SQL('insert content'), array($key, 'post', $title, $article, 'plain', $this->user['id'],$image));
+		$this->db->query(self::SQL('insert content'), array($key, 'post', $title, $article, 'plain', $this->user['id'],$image, false));
 		$idContent=$this->db->lastInsertId();
 		$this->db->query(self::SQL('insert into content2tags'),array($idContent,$idTag));	
 		$idTag=2;
@@ -397,7 +693,7 @@ EOD;
 		$image='game04.jpeg';
 		$idTag=4;
 		
-		$this->db->query(self::SQL('insert content'), array($key, 'post', $title, $article, 'plain', $this->user['id'],$image));
+		$this->db->query(self::SQL('insert content'), array($key, 'post', $title, $article, 'plain', $this->user['id'],$image, false));
 		$idContent=$this->db->lastInsertId();
 		$this->db->query(self::SQL('insert into content2tags'),array($idContent,$idTag));	
 		//$idTag=2;
@@ -417,7 +713,7 @@ EOD;
 		$image='game05.jpg';
 		$idTag=4;
 		
-		$this->db->query(self::SQL('insert content'), array($key, 'post', $title, $article, 'plain', $this->user['id'],$image));
+		$this->db->query(self::SQL('insert content'), array($key, 'post', $title, $article, 'plain', $this->user['id'],$image, false));
 		$idContent=$this->db->lastInsertId();
 		$this->db->query(self::SQL('insert into content2tags'),array($idContent,$idTag));	
 		//$idTag=2;
@@ -450,7 +746,7 @@ EOD;
 		$image='skate01.jpg';
 		$idTag=1;
 		
-		$this->db->query(self::SQL('insert content'), array($key, 'post', $title, $article, 'plain', $this->user['id'],$image));
+		$this->db->query(self::SQL('insert content'), array($key, 'post', $title, $article, 'plain', $this->user['id'],$image, false));
 		$idContent=$this->db->lastInsertId();
 		$this->db->query(self::SQL('insert into content2tags'),array($idContent,$idTag));	
 		//$idTag=2;
@@ -466,7 +762,7 @@ EOD;
 		$image='skate02.jpg';
 		$idTag=1;
 		
-		$this->db->query(self::SQL('insert content'), array($key, 'post', $title, $article, 'plain', $this->user['id'],$image));
+		$this->db->query(self::SQL('insert content'), array($key, 'post', $title, $article, 'plain', $this->user['id'],$image, false));
 		$idContent=$this->db->lastInsertId();
 		$this->db->query(self::SQL('insert into content2tags'),array($idContent,$idTag));	
 		//$idTag=2;
@@ -502,7 +798,7 @@ EOD;
 		$image='skate03.jpg';
 		$idTag=1;
 		
-		$this->db->query(self::SQL('insert content'), array($key, 'post', $title, $article, 'plain', $this->user['id'],$image));
+		$this->db->query(self::SQL('insert content'), array($key, 'post', $title, $article, 'plain', $this->user['id'],$image, false));
 		$idContent=$this->db->lastInsertId();
 		$this->db->query(self::SQL('insert into content2tags'),array($idContent,$idTag));	
 		//$idTag=2;
@@ -510,7 +806,7 @@ EOD;
 		
 		
 //4////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////		
-		$key='inte-mycket-återstår-innan-hoganasparken-star-klar';
+		$key='inte-mycket-aterstar-innan-hoganasparken-star-klar';
 		$title='Inte mycket återstår innan Höganäsparken står klar';
 		$article=<<<EOD
 Betongparken i Höganäs är där Tacky Skatecamps - Camp Junkyard kommer att äga rum i sommar står snart helt klart. Nu återstår i princip bara asfalteringen av flatdelen av parken. Tänk dock på att parken inte är öppen för åkning ännu!
@@ -518,7 +814,7 @@ EOD;
 		$image='skate04.jpg';
 		$idTag=1;
 		
-		$this->db->query(self::SQL('insert content'), array($key, 'post', $title, $article, 'plain', $this->user['id'],$image));
+		$this->db->query(self::SQL('insert content'), array($key, 'post', $title, $article, 'plain', $this->user['id'],$image, false));
 		$idContent=$this->db->lastInsertId();
 		$this->db->query(self::SQL('insert into content2tags'),array($idContent,$idTag));	
 		//$idTag=2;
@@ -593,7 +889,7 @@ EOD;
 		$image='skate05.jpg';
 		$idTag=1;
 		
-		$this->db->query(self::SQL('insert content'), array($key, 'post', $title, $article, 'plain', $this->user['id'],$image));
+		$this->db->query(self::SQL('insert content'), array($key, 'post', $title, $article, 'plain', $this->user['id'],$image, false));
 		$idContent=$this->db->lastInsertId();
 		$this->db->query(self::SQL('insert into content2tags'),array($idContent,$idTag));	
 		//$idTag=2;
@@ -613,7 +909,7 @@ EOD;
 		$image='web01.jpg';
 		$idTag=2;
 		
-		$this->db->query(self::SQL('insert content'), array($key, 'post', $title, $article, 'plain', $this->user['id'],$image));
+		$this->db->query(self::SQL('insert content'), array($key, 'post', $title, $article, 'plain', $this->user['id'],$image, false));
 		$idContent=$this->db->lastInsertId();
 		$this->db->query(self::SQL('insert into content2tags'),array($idContent,$idTag));	
 		//$idTag=3;
@@ -632,7 +928,7 @@ EOD;
 		$image='web02.jpg';
 		$idTag=2;
 		
-		$this->db->query(self::SQL('insert content'), array($key, 'post', $title, $article, 'plain', $this->user['id'],$image));
+		$this->db->query(self::SQL('insert content'), array($key, 'post', $title, $article, 'plain', $this->user['id'],$image, false));
 		$idContent=$this->db->lastInsertId();
 		$this->db->query(self::SQL('insert into content2tags'),array($idContent,$idTag));	
 		//$idTag=3;
@@ -651,7 +947,7 @@ EOD;
 		$image='web03.jpg';
 		$idTag=2;
 		
-		$this->db->query(self::SQL('insert content'), array($key, 'post', $title, $article, 'plain', $this->user['id'],$image));
+		$this->db->query(self::SQL('insert content'), array($key, 'post', $title, $article, 'plain', $this->user['id'],$image, false));
 		$idContent=$this->db->lastInsertId();
 		$this->db->query(self::SQL('insert into content2tags'),array($idContent,$idTag));	
 		//$idTag=3;
@@ -670,7 +966,7 @@ EOD;
 		$image='web04.jpg';
 		$idTag=2;
 		
-		$this->db->query(self::SQL('insert content'), array($key, 'post', $title, $article, 'plain', $this->user['id'],$image));
+		$this->db->query(self::SQL('insert content'), array($key, 'post', $title, $article, 'plain', $this->user['id'],$image, false));
 		$idContent=$this->db->lastInsertId();
 		$this->db->query(self::SQL('insert into content2tags'),array($idContent,$idTag));	
 		$idTag=3;
@@ -690,13 +986,14 @@ EOD;
 		$image='web05.jpg';
 		$idTag=2;
 		
-		$this->db->query(self::SQL('insert content'), array($key, 'post', $title, $article, 'plain', $this->user['id'],$image));
+		$this->db->query(self::SQL('insert content'), array($key, 'post', $title, $article, 'plain', $this->user['id'],$image, false));
 		$idContent=$this->db->lastInsertId();
 		$this->db->query(self::SQL('insert into content2tags'),array($idContent,$idTag));	
 		$idTag=3;
 		$this->db->query(self::SQL('insert into content2tags'),array($idContent,$idTag));	
 		
-
+		
+	
 		
 		/* tags
 		1 skateboarding 
@@ -719,132 +1016,5 @@ EOD;
 		$this->db->query(self::SQL('insert into content2tags'),array(1,2));
 		$this->db->query(self::SQL('insert into content2tags'),array(2,3));
 		*/
-	}
-  
-	public function save() 
-	{
-		if(!isset($this['image']))
-			$this['image']=null;
-		
-		$msg = null;
-		if($this['id']) 
-		{
-			$this->db->query(self::SQL('update content'), array($this['key'], $this['type'], $this['title'], $this['data'], $this['filter'], $this['id'], $this['image']));
-			$msg = 'update';
-		} else 
-		{
-			$this->db->query(self::SQL('insert content'), array($this['key'], $this['type'], $this['title'], $this['data'], $this['filter'], $this->user['id'], $this['image']));
-			$this['id'] = $this->db->lastInsertId();
-			$msg = 'created';
-		}
-		$rowcount = $this->db->rowCount();
-		if($rowcount) 
-		{
-			$this->session->addMessage('success', "Successfully {$msg} content '{$this['key']}'.");
-		} else 
-		{
-			$this->session->addMessage('error', "Failed to {$msg} content '{$this['key']}'.");
-		}
-		return $rowcount === 1;
-	}
-    
-	public function loadById($id) 
-	{
-		$res = $this->db->select(self::SQL('select * by id'), array($id));
-		if(empty($res)) 
-		{
-			$this->session->addMessage('error', "Failed to load content with id '$id'.");
-			return false;
-		} 
-		else 
-		{
-			$this->data = $res[0];
-		}
-		return true;
-	}
-	public function remove($id)
-	{
-		$this->db->query(self::SQL('update content as deleted'), array($id));
-		$this->session->addMessage('success', "Successfully removed content '{$id}'.");
-	}
-	public function listAllTags($args=null)
-	{
-		try 
-		{
-			if(isset($args)) 
-			{
-				return $this->db->select(self::SQL('get tags', $args), array($args['id']));
-			} 
-			else 
-			{
-				return $this->db->select(self::SQL('select *', $args));
-			}
-		} catch(Exception $e) 
-		{
-			echo $e;
-			return null;
-		}
-	} 
-	public function listAllByTag($args=null) 
-	{
-		try 
-		{
-			if(isset($args)) 
-			{
-				return $this->db->select(self::SQL('get content by tag', $args), array($args['tag']));
-			} 
-			else 
-			{
-				return $this->db->select(self::SQL('select *', $args));
-			}
-		} catch(Exception $e) 
-		{
-			echo $e;
-			return null;
-		}
-	}  
-	public function listAll($args=null) 
-	{
-		try 
-		{
-			if(isset($args) && isset($args['type'])) 
-			{
-				return $this->db->select(self::SQL('select * by type', $args), array($args['type']));
-			} 
-			else 
-			{
-				return $this->db->select(self::SQL('select *', $args));
-			}
-		} catch(Exception $e) 
-		{
-			echo $e;
-			return null;
-		}
-	}  
-	public static function filter($data, $filter)
-	{
-		switch($filter)
-		{/*
-		case 'php':
-			$data=nl2br(makeClickable(eval('?>'.$data)));
-			break;
-		case 'html':
-			$data=nl2br(makeClickable($data));
-			break;*/
-		case 'htmlpurify':
-			$data=nl2br(CHTMLPurifier::purify($data));
-			break;
-		case 'bbcode':
-			$data=nl2br(bbcode2html(htmlent($data)));
-			break;
-		case 'plain':
-		default:
-			$data=nl2br(makeClickable(htmlent($data)));
-		}
-		return $data;
-	}
-	public function getFilteredData()
-	{
-		return $this->filter($this['data'],$this['filter']);
 	}
 }

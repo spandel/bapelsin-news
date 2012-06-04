@@ -1,4 +1,4 @@
-<a href="<?=create_url("news/post/".$val['id'])?>"/>
+<a href="<?=create_url("news/post/".$val['key'])?>">
 
 <div id='img-div'>
 <?php
@@ -22,7 +22,7 @@ $y=0;
 		?>
 	</h2>
 	<p id='post-posted'>
-		<em>Posted on <?=$val['created']?> by <?=$val['owner']?></em>
+		<em>Skrivet <?=$val['created']?> av <?=$val['owner']?></em>
 	</p>
 	<p id='post-content'>
 		<?=substr(filter_data($val['data'],$val['filter']),0,80)?>...

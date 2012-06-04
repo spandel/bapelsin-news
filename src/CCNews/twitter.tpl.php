@@ -7,7 +7,7 @@ foreach($feed as $val){?>
 <?=$val['desc']?>
 </p>
 <?php $i++;
-if($i>3){break;}
+if($i>19){break;}
 }?>
 </div>
 

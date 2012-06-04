@@ -117,6 +117,10 @@ Here's Daniels
 
 EOD;
 
+$foot="";
+
+
+
 //
 $bap->config['create_dummy_text']=true;
 
@@ -137,12 +141,12 @@ $bap->config['theme'] = array(
 					'footer',
 	),
 	'data'=>array(
-		'header'=>'',
+		'header'=>'toaster.',
 		'slogan'=>"",
-		'favicon'=>'bapelsin.png',
-		'logo'=>'logo-01.png',
-		'logo_width'=>320,
-		'logo_height'=>66,
+		'favicon'=>'toaster-logo.png',
+		'logo'=>'toaster-logo.png',
+		'logo_width'=>100,
+		'logo_height'=>'',
 		'footer'=>$foot,
 	),
 	'menu_to_region'=>array(
@@ -168,9 +172,19 @@ $bap->config['menus']=array(
 		'web'		=> array('label'=>'WEB','url'=>'news/web'),
 		'gaming'	=> array('label'=>'GAMING','url'=>'news/gaming'),
 		'skateboarding'	=> array('label'=>'SKATEBOARDING','url'=>'news/skateboarding'),
-		'guestbook' => array('label'=>'FORUM','url'=>'news/guestbook'),
+		'guestbook' => array('label'=>'FORUM','url'=>'news/forum'),
+		'about' => array('label'=>'ABOUT','url'=>'news/about'),
 	),
 );
+
+$bap->config['show_login_menu']=true;
+$bap->config['login_menu']=array(	
+	"login"			=> array("src"=>"user/login",'label'=>"Logga in"),
+	"acp"			=> array("src"=>"news/authoring",'label'=>"Artiklar"),
+	"logout"		=> array("src"=>"user/logout",'label'=>"Logga ut"),
+	"profile"		=> array('src'=>"user/profile", 'label'=>"__profile"),
+	"show_gravatar"	=> true,
+	);
 
 /**
 * What type of urls should be used?
